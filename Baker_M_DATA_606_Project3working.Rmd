@@ -1,0 +1,236 @@
+---
+title: "Baker_M_DATA_606_Project"
+author: "Matthew Baker"
+date: "12/11/2019"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r echo=FALSE}
+library(ggplot2)
+library(dplyr)
+```
+
+### Part 1 - Introduction
+
+This project will explore the outcomes of certain patents issued by the United States Patent Office (USPTO).  
+
+
+The first group of patents is one which tracks variables of all patents including re-classification and number of citations.
+
+At the time of issuance, all patents are assigned a classification code that describes the subject matter of the patent.  Afterwards researches can find patents by searching within pertinent classification codes.  This system is called the US Patent Classification (USPC).  The USPC is periodically revised to account for the evolution of technologies.  As innovation in certain technologies slows to a halt (e.g. Muzzleloader firearms, Credit Card imprinters, Typewriters, Fax Machines), the classification is updated and certain patents must be re-classified.
+
+
+The second group of patents is one which tracks legally challenged patents.
+
+After a patent is issued its validity can be legally challenged.  Challenges can be filed either in federal court or at the USPTO itself.
+
+My hypothesis is that higher visibility will lead to higher rate of challenge.  The two independent variables, both treated categorically will be citations (zero vs non-zero) and reclassifcation (yes/no). The outcome variable will be if a patent was later challenged (yes/no).
+
+
+
+### Part 2 - Data
+```{r}
+#For ease of analysis the data is downloaded and in csv format.
+
+# The first dataset contains five variables: 1) patent: patent number 2) gyear: grant year 3) nclass_ocl: original (at birth) main class 4) class: current main class 5) allcites: number of citations received between birth and June 2015.
+
+patent_c<-read.csv("C:/Users/Matt/Documents/CUNY/DATA606/patent-year-ocl-ccl-allcites.csv")
+
+
+#clean data, for the purposes of analysis the patents starting with D are ignored, these are design patents and will not show up in the compared dataset
+patent_c$nclass_ocl <- trimws(patent_c$nclass_ocl, which = c("both"))
+patent_c$nclass <- trimws(patent_c$nclass, which = c("both"))
+
+#compare data and create new comparison qualitative variable
+patent_c$changed<-as.numeric(as.numeric(patent_c$nclass) != as.numeric(patent_c$nclass_ocl))
+head(patent_c)
+```
+
+```{r}
+#second dataset challenged patents list
+patent_ptab<-read.csv("C:/Users/Matt/Documents/CUNY/DATA606/results-20191019-160901.csv")
+patent_ptab$challenged<-as.numeric(1)
+head(patent_ptab)
+```
+
+#merge datasets and wrangle into categorical variables
+```{r}
+alldata<-merge(patent_c, patent_ptab, by.x = "patent", by.y="PatentNumber", all=TRUE) 
+
+tabledata<-alldata[c("patent", "changed", "challenged", "allcites")]
+tabledata %>% mutate_if(is.factor, as.character) %>%
+  filter(!grepl('^D', patent)) %>%  filter(!grepl('^T', patent)) %>% replace(is.na(.), 0) %>% mutate(allcites=(replace(allcites, allcites>0,1))) %>% distinct(tabledata)-> tabledata
+head(tabledata)
+```
+
+
+
+
+
+
+### Part 3 - Exploratory data analysis
+
+##Graphs
+
+The barplot highlights that challenge is a very rare event. 
+```{r}
+#focusing on classification change and challenge outcome
+mdata<-tabledata[c("changed", "challenged")]
+table(mdata)
+names<-c("Not Changed", "Changed")
+legend<-("Challenged")
+barplot(table(mdata), main = "Stacked Barplot of Challenged Patents", xlab ="Classification Change", ylab="Frequency", names.arg=names)
+```
+The mosaic plot shows the difference in the proportions, detailed below.
+```{r}
+mosaicplot(table(mdata$challenged,mdata$changed), main = "Mosaic plot of Re-classification and Challenge", xlab = "Classification Changed", ylab = "Challenged")
+```
+
+#Descriptive statistics 
+Proportion who had classification changed in the treatment (challenged) group: 3.87%
+Proportion who had classification changed in the control (not challenged) group: 8.56%
+This is contrary to what I expected, which was that re-classification would increase the rate of challenge.
+```{r}
+282/7281
+403830/4716973
+```
+
+
+#Inferential statistics
+
+```{r}
+n<-7281
+p<-.0387
+n*p>10
+n*(1-p)>10
+SE<-sqrt((p*(1-p))/n)
+SE
+p1<-.0856
+
+```
+
+
+
+
+
+
+#random sample
+```{r}
+mdatasample <- mdata[sample(nrow(mdata), 7500, replace = FALSE, prob = NULL),]
+table(mdatasample)
+```
+
+
+
+
+# ```{r}
+# 
+# 
+# 
+# ggplot(data = mdata, aes(x=challenged)) + 
+#   geom_bar(stat="count", position=position_dodge()) +
+#   facet_grid(changed ~ allcites)
+# ```
+
+
+
+```{r}
+totals=table(mdata$changed, mdata$challenged)
+mosaicplot(totals, main="outcomes", xlab="Classification changed", ylab="Challenge")
+```
+
+<!-- ```{r} -->
+<!-- totals=table(mdata$allcites, mdata$challenged) -->
+<!-- mosaicplot(totals, main="outcomes", xlab="Patent Cited", ylab="Challenge") -->
+<!-- ``` -->
+```{r}
+table(mdata)
+```
+
+
+
+##summary stats
+```{r}
+#subset the unchanged and changed patents
+x0_unchanged <- subset(patent_c, changed == 0, select = c("patent","gyear","nclass_ocl","nclass", "allcites","changed"))
+x1_changed <- subset(patent_c, changed == 1, select = c("patent","gyear","nclass_ocl", "nclass", "allcites","changed"))
+y0_unchanged_challenged<-merge(x0_unchanged, patent_ptab, by.x = "patent", by.y="PatentNumber")
+y1_changed_challenged<-merge(x1_changed, patent_ptab, by.x = "patent", by.y="PatentNumber")
+z0_unchanged_unchallenged<-x0_unchanged[!(x0_unchanged$patent %in% y0_unchanged_challenged$patent),]
+z1_changed_unchallenged<-x1_changed[!(x1_changed$patent %in% y1_changed_challenged$patent),]
+```
+
+#Number of patents who had their classification left unchanged and were later challenged: 4084
+
+```{r}
+y0_unchanged_challenged %>% summarise_all(funs(n_distinct(.)))
+```
+
+#Number of patents who had their classification changed and were later challenged: 142
+
+```{r}
+y1_changed_challenged %>% summarise_all(funs(n_distinct(.)))
+```
+#proportion who had classification changed in the treatment (challenged) group: 3.47%
+#proportion who had classification changed in the control (not challenged) group: 8.60%
+```{r}
+142/4084
+```
+
+#proportion who had classification changed in the control (not challenged) group: 8.60%
+```{r}
+z0_unchanged_unchallenged %>% summarise_all(funs(n_distinct(.)))
+z1_changed_unchallenged %>% summarise_all(funs(n_distinct(.)))
+404001/4695487
+```
+##
+
+#from the observed data the contingency table looks like the following
+```{r}
+observed_table <- matrix(c(4084, 4695491, 142, 404004), nrow = 2, ncol = 2, byrow = T)
+rownames(observed_table) <- c('unchanged', 'changed')
+colnames(observed_table) <- c('challenged', 'not challenged')
+observed_table
+```
+
+```{r}
+observed_table_p <- matrix(c(0.000869015, 0.999130985, 0.000351358, 0.999648642), nrow = 2, ncol = 2, byrow = T)
+rownames(observed_table_p) <- c('unchanged', 'changed')
+colnames(observed_table_p) <- c('challenged', 'not challenged')
+observed_table_p
+```
+
+
+
+### Part 4 - Inference
+```{r}
+# H0: pchanged = pchallenged
+# HA: pchanged != pnotchallenged
+prop.table(table((mdata))
+```
+
+
+Chi-square test for categorical variables 
+
+
+### Part 5 - Conclusion
+
+
+### References
+#Paper that inspired the project
+https://link.springer.com/article/10.1007/s00191-018-0603-3
+
+
+
+
+#(requires google sign-in)
+https://bigquery.cloud.google.com/table/patents-public-data:uspto_ptab.trials_201710?pli=1
+
+### Appendix (optional)
+Source 1: https://www.harshaash.website/chi-square-test-of-independence/
+
+Remove this section if you don't have an appendix
+
+chi-squared
