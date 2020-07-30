@@ -2,7 +2,9 @@
 title: "Baker_M_DATA_606_Project"
 author: "Matthew Baker"
 date: "12/11/2019"
-output: rmarkdown::github_document
+output: 
+  html_document:
+    keep_md: true
 ---
 
 ```{r echo=FALSE}
