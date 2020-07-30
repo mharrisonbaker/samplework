@@ -2,9 +2,7 @@
 title: "Baker_M_DATA_606_Project"
 author: "Matthew Baker"
 date: "12/11/2019"
-output:
-  html_document:
-    df_print: paged
+output: rmarkdown::github_document
 ---
 
 ```{r echo=FALSE}
